@@ -1,0 +1,30 @@
+# Trading bot configuration
+# mode: 'backtest', 'papertrading', or 'live'
+mode: 'papertrading'
+
+shoonya:
+  api_key: "YOUR_API_KEY"
+  api_secret: "YOUR_API_SECRET"
+  user_id: "YOUR_USER_ID"
+  password: "YOUR_PASSWORD"
+  vendor_code: "YOUR_VENDOR_CODE"
+  imei: "YOUR_IMEI_OR_MAC"
+  totp_secret: "YOUR_TOTP_SECRET"
+
+strategy:
+  max_trades_per_day: 4
+  max_loss_per_day: 500
+  zone_calculation_time: "09:16:00"
+  sl_points: 2.5
+
+data:
+  db_path: "market_data.db"
+  symbols:
+    - "NIFTY-I"  # Nifty Index
+    - "BANKNIFTY-I"  # BankNifty Index
+  tick_storage: true
+  historical_data_days: 5
+
+logging:
+  level: "INFO"
+  path: "logs/"
