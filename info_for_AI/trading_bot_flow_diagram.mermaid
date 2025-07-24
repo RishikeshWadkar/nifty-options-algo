@@ -1,0 +1,58 @@
+graph TD
+    A[🍎 MacBook Starts Bot] --> B[📡 Connect to Shoonya API]
+    B --> C[🔌 Open WebSocket Connection]
+    C --> D[📊 Subscribe to NIFTY Market Data]
+    
+    D --> E[💾 Collect First 15 Minutes Data<br/>9:15 AM - 9:16 AM]
+    E --> F[📏 Calculate Zone Levels<br/>High/Low of first 15 min]
+    
+    F --> G[⏰ Start Live Trading Loop<br/>After 9:16 AM]
+    
+    G --> H[📈 New Price Tick Received]
+    H --> I{🎯 Price Crosses Zone?}
+    
+    I -->|❌ No Signal| G
+    I -->|✅ Long Signal<br/>Price > High Zone| J[🚀 Generate LONG Signal]
+    I -->|✅ Short Signal<br/>Price < Low Zone| K[📉 Generate SHORT Signal]
+    
+    J --> L[🛡️ Risk Manager Checks]
+    K --> L
+    
+    L --> M{⚖️ Risk Rules OK?}
+    M -->|❌ Risk Violation<br/>Max trades/loss reached| N[🚫 Block Trade]
+    M -->|✅ Risk OK| O[📋 Create Order]
+    
+    O --> P{🔧 Trading Mode?}
+    P -->|📝 Paper Trading| Q[🎭 Simulate Order Fill]
+    P -->|💰 Live Trading| R[📤 Send Order to Shoonya]
+    
+    Q --> S[✅ Record Simulated Execution]
+    R --> T[✅ Record Real Execution]
+    
+    S --> U[💼 Track Position]
+    T --> U
+    
+    U --> V[📊 Monitor for Stop Loss/Take Profit]
+    V --> W{🎯 Exit Condition Met?}
+    
+    W -->|❌ Continue Monitoring| V
+    W -->|✅ SL/TP Hit| X[🚪 Exit Position]
+    
+    X --> Y[💾 Save Trade to Database]
+    Y --> Z[📝 Log P&L Results]
+    
+    Z --> G
+    N --> G
+    
+    %% Styling
+    classDef startEnd fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef decision fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef signal fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef risk fill:#ffebee,stroke:#b71c1c,stroke-width:2px
+    
+    class A,D,Y,Z startEnd
+    class B,C,E,F,G,H,O,Q,R,S,T,U,V,X process
+    class I,M,P,W decision
+    class J,K signal
+    class L,N risk
