@@ -1,30 +1,65 @@
-# Trading bot configuration
-# mode: 'backtest', 'papertrading', or 'live'
-mode: 'papertrading'
+# config/config.yaml - Production Configuration
+# IMPORTANT: Never commit real credentials to git!
 
+# Trading mode: 'backtest', 'papertrading', or 'live'
+mode: 'papertrading'  # Start with paper trading!
+
+# Broker Configuration
 shoonya:
-  api_key: "YOUR_API_KEY"
-  api_secret: "YOUR_API_SECRET"
-  user_id: "YOUR_USER_ID"
-  password: "YOUR_PASSWORD"
-  vendor_code: "YOUR_VENDOR_CODE"
-  imei: "YOUR_IMEI_OR_MAC"
-  totp_secret: "YOUR_TOTP_SECRET"
+  api_key: "${SHOONYA_API_KEY}"           # Set as environment variable
+  api_secret: "${SHOONYA_API_SECRET}"     # Set as environment variable  
+  user_id: "${SHOONYA_USER_ID}"           # Set as environment variable
+  password: "${SHOONYA_PASSWORD}"         # Set as environment variable
+  vendor_code: "${SHOONYA_VENDOR_CODE}"   # Set as environment variable
+  imei: "${SHOONYA_IMEI}"                 # Set as environment variable
+  totp_secret: "${SHOONYA_TOTP_SECRET}"   # Set as environment variable
 
+# Strategy Configuration
 strategy:
-  max_trades_per_day: 4
-  max_loss_per_day: 500
-  zone_calculation_time: "09:16:00"
-  sl_points: 2.5
+  symbols: ['NIFTY', 'BANKNIFTY']  # Main trading instruments
+  max_trades_per_day: 4            # Maximum trades allowed per day
+  sl_points: 2.5                   # Stop loss in points
+  entry_buffer: 0.0                # Buffer for zone entries
+  zone_calculation_time: "09:16:00" # Time to calculate zones
+  trailing_sl_enabled: true        # Enable trailing stop loss
+  risk_reward_ratio: 2.0           # Target profit = SL * this ratio
 
+# Risk Management
+risk:
+  max_trades_per_day: 4            # Hard limit on daily trades
+  max_daily_loss: 500.0            # Maximum daily loss in INR
+  position_size: 1                 # Lot size per trade
+  max_position_value: 10000        # Maximum position value
+  emergency_stop_loss: 1000        # Emergency stop if loss exceeds this
+
+# Data Configuration
 data:
-  db_path: "market_data.db"
+  db_path: "data/trading_bot.db"
   symbols:
-    - "NIFTY-I"  # Nifty Index
-    - "BANKNIFTY-I"  # BankNifty Index
+    - "NIFTY"
+    - "BANKNIFTY"
   tick_storage: true
   historical_data_days: 5
+  market_open: "09:15:00"
+  market_close: "15:30:00"
 
+# Logging Configuration
 logging:
-  level: "INFO"
+  level: "INFO"                    # DEBUG, INFO, WARNING, ERROR
   path: "logs/"
+  max_file_size: "10MB"
+  retention_days: 30
+
+# Alert Configuration (Optional - for future enhancement)
+alerts:
+  enabled: false
+  email: "your-email@example.com"
+  telegram_bot_token: "${TELEGRAM_BOT_TOKEN}"
+  telegram_chat_id: "${TELEGRAM_CHAT_ID}"
+  
+# Position Management
+position:
+  trailing_sl_trigger: 5.0         # Start trailing SL after this profit
+  trailing_sl_step: 1.0            # Trail by this amount
+  partial_exit_enabled: false      # Take partial profits
+  partial_exit_percent: 50         # % to exit on first target
