@@ -1,0 +1,235 @@
+graph TD
+    A[🍎 MacBook Starts Bot] --> B{🔧 Select Mode}
+    
+    B -->|📊 Backtest| BT[📈 Backtesting Flow]
+    B -->|📝 Paper Trading| PT[🎭 Paper Trading Flow]  
+    B -->|💰 Live Trading| LT[🚀 Live Trading Flow]
+    
+    %% BACKTESTING FLOW
+    BT --> BT1[📁 Load Historical Data]
+    BT1 --> BT2{💾 Data Available?}
+    BT2 -->|❌ No Data| BT3[🔄 Download from Shoonya API]
+    BT2 -->|✅ Data Found| BT4[⚡ Fast Replay Mode]
+    BT3 --> BT4
+    BT4 --> BT5[📊 Generate Performance Metrics]
+    BT5 --> BT6[💾 Save Results to DB]
+    BT6 --> END1[✅ Backtesting Complete]
+    
+    %% PAPER TRADING FLOW
+    PT --> PT1[📡 Connect to Shoonya API]
+    PT1 --> PT2{🔗 Connection OK?}
+    PT2 -->|❌ API Down| PT3[📧 Send Alert: API Down]
+    PT2 -->|✅ Connected| PT4[🔌 Start WebSocket]
+    PT3 --> PT31[⏰ Wait 30s & Retry]
+    PT31 --> PT1
+    
+    PT4 --> PT5{🌐 WebSocket OK?}
+    PT5 -->|❌ WS Failed| PT6[📧 Alert: WebSocket Failed]
+    PT5 -->|✅ WS Connected| PT7[📊 Start Paper Simulation]
+    PT6 --> PT61[🔄 Auto-Reconnect Logic]
+    PT61 --> PT4
+    
+    PT7 --> PT8[💾 Track Simulated Positions]
+    PT8 --> MAIN[🎯 Main Trading Logic]
+    
+    %% LIVE TRADING FLOW  
+    LT --> LT1[🔐 Authenticate with 2FA]
+    LT1 --> LT2{🔑 Auth Success?}
+    LT2 -->|❌ Auth Failed| LT3[🚨 CRITICAL Alert: Auth Failed]
+    LT2 -->|✅ Authenticated| LT4[💰 Enable Live Trading Mode]
+    LT3 --> LT31[🛑 Emergency Stop]
+    LT31 --> END2[❌ Bot Stopped - Manual Intervention Required]
+    
+    LT4 --> LT5[📡 Connect to Live API]
+    LT5 --> LT6{🔗 Live Connection OK?}
+    LT6 -->|❌ Connection Failed| LT7[🚨 CRITICAL Alert: Live API Down]
+    LT6 -->|✅ Connected| LT8[💰 Start Live Trading]
+    LT7 --> LT71[⏰ Emergency Mode: Wait & Retry]
+    LT71 --> LT5
+    
+    LT8 --> MAIN
+    
+    %% MAIN TRADING LOGIC (Common for Paper & Live)
+    MAIN --> M1[📊 Collect Market Data]
+    M1 --> M2{🌐 Data Feed OK?}
+    
+    M2 -->|❌ No Data| M3[📧 Alert: Data Feed Lost]
+    M2 -->|✅ Data Flowing| M4[🕘 Check Market Hours]
+    M3 --> M31[🔄 Auto-Reconnect WebSocket]
+    M31 --> M32{🔄 Reconnect Success?}
+    M32 -->|✅ Reconnected| M4
+    M32 -->|❌ Still Failed| M33[🚨 CRITICAL Alert: Data Feed Down]
+    M33 --> M34[⏰ Wait 60s & Retry]
+    M34 --> M31
+    
+    M4 --> M5{🕘 Market Open?}
+    M5 -->|❌ Market Closed| M6[😴 Sleep Mode]
+    M5 -->|✅ Market Open| M7[📏 Calculate Zones]
+    M6 --> M61[⏰ Wait Until Market Opens]
+    M61 --> M4
+    
+    M7 --> M8{📊 Zone Calculation OK?}
+    M8 -->|❌ Calculation Failed| M9[📧 Alert: Zone Calculation Failed]
+    M8 -->|✅ Zones Ready| M10[🎯 Monitor for Signals]
+    M9 --> M91[🔄 Retry Zone Calculation]
+    M91 --> M7
+    
+    M10 --> M11{📈 Signal Generated?}
+    M11 -->|❌ No Signal| M10
+    M11 -->|✅ Signal Found| M12[⚖️ Risk Management Check]
+    
+    M12 --> M13{🛡️ Risk Rules OK?}
+    M13 -->|❌ Risk Violation| M14[📧 Alert: Trade Blocked by Risk]
+    M13 -->|✅ Risk Approved| M15{🔧 Trading Mode Check}
+    M14 --> M10
+    
+    M15 -->|📝 Paper Mode| P1[🎭 Simulate Order]
+    M15 -->|💰 Live Mode| L1[📤 Send Real Order]
+    
+    %% PAPER TRADING EXECUTION
+    P1 --> P2[✅ Instant Simulated Fill]
+    P2 --> P3[💾 Update Simulated Portfolio]
+    P3 --> P4[📧 Telegram: Paper Trade Executed]
+    P4 --> MON[📊 Position Monitoring]
+    
+    %% LIVE TRADING EXECUTION
+    L1 --> L2{📤 Order Sent OK?}
+    L2 -->|❌ Send Failed| L3[🚨 CRITICAL Alert: Order Send Failed]
+    L2 -->|✅ Sent Successfully| L4[⏰ Wait for Fill Confirmation]
+    L3 --> L31[🔄 Retry Order Send]
+    L31 --> L32{🔄 Retry Success?}
+    L32 -->|✅ Sent| L4
+    L32 -->|❌ Still Failed| L33[🚨 EMERGENCY: Order System Down]
+    L33 --> L34[🛑 Emergency Shutdown]
+    L34 --> END3[❌ Emergency Stop - Manual Intervention]
+    
+    L4 --> L5{✅ Order Filled?}
+    L5 -->|⏰ Waiting| L6[⏰ Wait 10s]
+    L5 -->|✅ Filled| L7[💾 Record Execution]
+    L5 -->|❌ Rejected| L8[📧 Alert: Order Rejected]
+    L6 --> L61{⏰ Timeout Reached?}
+    L61 -->|❌ Keep Waiting| L5
+    L61 -->|✅ Timeout| L9[📧 Alert: Order Fill Timeout]
+    
+    L7 --> L71{💰 Fill Price OK?}
+    L71 -->|❌ Bad Fill Price| L72[📧 Alert: Slippage Warning]
+    L71 -->|✅ Good Fill| L73[📧 Telegram: Live Trade Executed]
+    L72 --> L73
+    L73 --> MON
+    
+    L8 --> L81[🔍 Analyze Rejection Reason]
+    L81 --> L82{🔍 Reason Analysis}
+    L82 -->|💰 Insufficient Funds| L83[🚨 CRITICAL: Insufficient Funds]
+    L82 -->|🕘 Market Closed| L84[📧 Alert: Market Closed Order]
+    L82 -->|⚡ Rate Limit| L85[⏰ Wait & Retry]
+    L82 -->|❓ Unknown Reason| L86[📧 Alert: Unknown Rejection]
+    L83 --> L87[🛑 Emergency Shutdown]
+    L84 --> M10
+    L85 --> L1
+    L86 --> M10
+    L87 --> END4[❌ Critical Stop - Check Funds]
+    
+    L9 --> L91[❓ Check Order Status]
+    L91 --> L92{❓ Order Status}
+    L92 -->|✅ Actually Filled| L7
+    L92 -->|⏰ Still Pending| L93[❌ Cancel Pending Order]
+    L92 -->|❌ Actually Rejected| L8
+    L93 --> M10
+    
+    %% POSITION MONITORING (Common for Both Modes)
+    MON --> MON1[📊 Monitor Position]
+    MON1 --> MON2{🎯 Exit Condition?}
+    
+    MON2 -->|❌ Hold Position| MON3[📊 Update Trailing SL]
+    MON2 -->|✅ SL Hit| MON4[🚪 Exit via Stop Loss]
+    MON2 -->|✅ TP Hit| MON5[🚪 Exit via Take Profit]
+    MON2 -->|✅ Manual Exit| MON6[🚪 Manual Exit Signal]
+    
+    MON3 --> MON1
+    
+    MON4 --> MON7{🔧 Exit Mode}
+    MON5 --> MON7
+    MON6 --> MON7
+    
+    MON7 -->|📝 Paper Mode| MON8[🎭 Simulate Exit]
+    MON7 -->|💰 Live Mode| MON9[📤 Send Exit Order]
+    
+    MON8 --> MON10[💾 Record Paper Exit]
+    MON10 --> MON11[📊 Calculate Paper P&L]
+    MON11 --> MON12[📧 Telegram: Paper Position Closed]
+    MON12 --> RPT[📈 Generate Reports]
+    
+    MON9 --> MON13{📤 Exit Order Sent?}
+    MON13 -->|❌ Send Failed| MON14[🚨 CRITICAL: Exit Order Failed]
+    MON13 -->|✅ Sent| MON15[⏰ Wait for Exit Fill]
+    MON14 --> MON141[🔄 Retry Exit Order]
+    MON141 --> MON9
+    
+    MON15 --> MON16{✅ Exit Filled?}
+    MON16 -->|✅ Filled| MON17[💾 Record Live Exit]
+    MON16 -->|❌ Not Filled| MON18[📧 Alert: Exit Fill Issue]
+    MON16 -->|⏰ Waiting| MON19[⏰ Wait 10s]
+    
+    MON17 --> MON20[📊 Calculate Live P&L]
+    MON18 --> MON181[🔍 Check Exit Order Status]
+    MON19 --> MON16
+    MON181 --> MON9
+    
+    MON20 --> MON21[📧 Telegram: Live Position Closed]
+    MON21 --> RPT
+    
+    %% REPORTING & ALERTS
+    RPT --> RPT1[📊 Update Performance Metrics]
+    RPT1 --> RPT2[💾 Save Trade to Database]
+    RPT2 --> RPT3{📊 Daily Limits Check}
+    
+    RPT3 -->|✅ Within Limits| RPT4[📧 Trade Summary Alert]
+    RPT3 -->|❌ Limit Exceeded| RPT5[🚨 HALT: Daily Limit Reached]
+    
+    RPT4 --> RPT6[📈 Update Dashboard Data]
+    RPT5 --> RPT51[🛑 Emergency Shutdown]
+    RPT51 --> END5[⏸️ Bot Halted - Daily Limit Reached]
+    
+    RPT6 --> RPT7{🕘 Market Still Open?}
+    RPT7 -->|✅ Market Open| M10
+    RPT7 -->|❌ Market Closed| RPT8[📧 Daily Summary Email]
+    RPT8 --> RPT9[😴 End of Day Shutdown]
+    RPT9 --> END6[✅ Normal Daily Shutdown]
+    
+    %% INTERNET CONNECTIVITY MONITORING
+    subgraph "🌐 Background Internet Monitor"
+        NET1[🌐 Ping Test Every 30s]
+        NET1 --> NET2{📶 Internet OK?}
+        NET2 -->|✅ Connected| NET1
+        NET2 -->|❌ Disconnected| NET3[🚨 CRITICAL: Internet Down]
+        NET3 --> NET4[📱 Try Mobile Hotspot Alert]
+        NET4 --> NET5[⏰ Wait for Reconnection]
+        NET5 --> NET1
+    end
+    
+    %% SYSTEM HEALTH MONITORING
+    subgraph "🏥 Background Health Monitor"
+        HEALTH1[🏥 System Check Every 60s]
+        HEALTH1 --> HEALTH2{💻 System Health OK?}
+        HEALTH2 -->|✅ Healthy| HEALTH1
+        HEALTH2 -->|⚠️ High CPU/Memory| HEALTH3[📧 Performance Warning]
+        HEALTH2 -->|🔥 Critical Issues| HEALTH4[🚨 System Critical Alert]
+        HEALTH3 --> HEALTH1
+        HEALTH4 --> HEALTH5[🛑 Protective Shutdown]
+        HEALTH5 --> END7[❌ System Protection Shutdown]
+    end
+    
+    %% Styling
+    classDef startEnd fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef decision fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef alert fill:#ffebee,stroke:#b71c1c,stroke-width:2px
+    classDef critical fill:#ff1744,stroke:#ffffff,stroke-width:3px
+    classDef success fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    
+    class A,END1,END2,END3,END4,END5,END6,END7 startEnd
+    class M1,M7,M10,MON1,RPT1,BT4,PT7,LT8 process
+    class B,M2,M5,M8,M11,M13,M15,L2,L5,MON2 decision
+    class M3,M9,M14,L3,L8,L9,MON14,MON18,RPT4,NET3,HEALTH3 alert
+    class LT3,L33,L83,RPT5,NET4,HEALTH4 critical
+    class P2,L7,MON17,RPT6 success

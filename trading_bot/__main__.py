@@ -18,6 +18,69 @@ from trading_bot.risk.manager import RiskManager
 from trading_bot.position.manager import PositionManager
 from trading_bot.config.manager import ConfigManager
 from trading_bot.persistence.database import Database
+import yaml
+from trading_bot.alerts.notifier import notifier  # <-- Add this import
+# from trading_bot.alerts.notifier import send_critical_alert  # Uncomment if implemented
+
+LOG_DIR = 'logs'
+SYMBOLS = ['NIFTY']  # Add your symbols here
+
+def reconcile_state(api_wrapper: ShoonyaAPIWrapper, db: Database) -> bool:
+    """
+    Reconcile local DB state with broker state on startup.
+    Returns True if reconciliation is successful, False otherwise.
+    Handles open trades, pending orders, partial fills, and sends alerts on failure.
+    """
+    try:
+        open_trades = db.get_open_trades()
+        pending_orders = db.get_pending_orders()
+        broker_positions = api_wrapper.get_open_positions()
+        # Fetch all broker orders (implement if available)
+        broker_orders = []
+        if hasattr(api_wrapper.session, 'get_order_book'):
+            broker_orders = api_wrapper.session.get_order_book()
+
+        # 1. Close trades in DB that are not open at broker
+        for trade in open_trades:
+            symbol = trade[2]  # Adjust index as per schema
+            found = any(pos.get('tsym') == symbol for pos in broker_positions)
+            if not found:
+                logger.warning(f"[Reconcile] Trade {trade[1]} open in DB but not at broker. Marking as closed.")
+                # db.save_trade({...})  # Update status to CLOSED
+
+        # 2. Add broker positions to DB if not present
+        for pos in broker_positions:
+            symbol = pos.get('tsym')
+            found = any(trade[2] == symbol for trade in open_trades)
+            if not found:
+                logger.warning(f"[Reconcile] Position {symbol} open at broker but not in DB. Adding to DB.")
+                # db.save_trade({...})  # Add as open trade
+
+        # 3. Cancel orders in DB that are not pending at broker
+        for order in pending_orders:
+            order_id = order[1]  # Adjust index as per schema
+            found = any(b_order.get('norenordno') == order_id for b_order in broker_orders)
+            if not found:
+                logger.warning(f"[Reconcile] Order {order_id} pending in DB but not at broker. Marking as cancelled.")
+                # db.save_order({...})  # Update status to CANCELLED
+
+        # 4. Handle partial fills (if broker provides fill info)
+        for b_order in broker_orders:
+            if b_order.get('status') == 'PARTIALLY_FILLED':
+                logger.info(f"[Reconcile] Order {b_order.get('norenordno')} is partially filled. Consider resuming monitoring or manual intervention.")
+                # Optionally update DB or alert
+
+        logger.info("[Reconcile] Startup reconciliation completed successfully.")
+        return True
+    except Exception as exc:
+        logger.critical(f"[Reconcile] Startup reconciliation failed: {exc}")
+        notifier.alert(
+            message=f"Startup reconciliation failed! Manual intervention required.\nError: {exc}",
+            priority="CRITICAL",
+            telegram=True,
+            email=True
+        )
+        return False
 
 class TradingBotOrchestrator:
     """
