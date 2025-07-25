@@ -1,49 +1,32 @@
-from typing import List, Dict
-from trading_bot.event import MarketEvent
+from typing import Dict
+from datetime import datetime, time
+from loguru import logger
 
 class ZoneCalculator:
-    """
-    Utility for 9:16 AM price zone calculations for the strategy.
-    Extracts the first 15-minute candle (from MarketEvents) and computes entry zones.
-
-    Args:
-        buffer (float): Optional buffer to add/subtract from zones.
-    """
-    def __init__(self, buffer: float = 0.0) -> None:
-        """
-        Initialize the ZoneCalculator.
-
-        Args:
-            buffer (float): Buffer to add/subtract from entry zones.
-        """
-        self.buffer: float = buffer
-
-    def calculate_zones(self, events: List[MarketEvent]) -> Dict[str, float]:
-        """
-        Given a list of MarketEvents for the first 15 minutes, calculate the open, high, low, close, and entry zones.
-
-        Args:
-            events (List[MarketEvent]): List of market events for the first 15 minutes.
-
-        Returns:
-            Dict[str, float]: Dictionary with keys: 'open', 'high', 'low', 'close', 'long_entry', 'short_entry'.
-
-        Raises:
-            ValueError: If no market events are provided.
-        """
-        if not events:
-            raise ValueError("No market events provided for zone calculation.")
-        open_price: float = events[0].price
-        high_price: float = max(e.price for e in events)
-        low_price: float = min(e.price for e in events)
-        close_price: float = events[-1].price
-        long_entry: float = high_price + self.buffer
-        short_entry: float = low_price - self.buffer
-        return {
-            'open': open_price,
-            'high': high_price,
-            'low': low_price,
-            'close': close_price,
-            'long_entry': long_entry,
-            'short_entry': short_entry
-        } 
+    """Calculate zones based on 9:16 AM INDEX price for Nifty Small SL Algo"""
+    
+    def __init__(self, zone_offset: float = 2.5):
+        self.zone_offset = zone_offset
+        self.zones_calculated = False
+        self.calculation_time = time(9, 16, 0)
+    
+    def calculate_zones_at_916(self, index_price: float) -> Dict[str, float]:
+        """Calculate zones based on INDEX price at 9:16 AM"""
+        zones = {
+            'middle_zone': index_price,
+            'upper_zone': index_price + self.zone_offset,  # CE entry
+            'lower_zone': index_price - self.zone_offset,  # PE entry
+            'calculation_time': datetime.now(),
+            'base_price': index_price
+        }
+        
+        self.zones_calculated = True
+        logger.info(f"Zones calculated at 9:16 AM - Upper: {zones['upper_zone']}, Middle: {zones['middle_zone']}, Lower: {zones['lower_zone']}")
+        
+        return zones
+    
+    def should_calculate_zones(self, current_time: time) -> bool:
+        """Check if it's time to calculate zones (9:16 AM)"""
+        return (current_time >= self.calculation_time and 
+                current_time <= time(9, 16, 10) and 
+                not self.zones_calculated)

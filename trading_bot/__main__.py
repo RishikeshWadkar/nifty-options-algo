@@ -12,7 +12,14 @@ from loguru import logger
 from trading_bot.utils.logger import setup_logger
 from trading_bot.event_queue import EventQueue
 from trading_bot.broker.api_wrapper import ShoonyaAPIWrapper
-from trading_bot.broker.enhanced_data_handler import EnhancedDataHandler
+from trading_bot.broker.data_handler import DataHandler
+
+# And update the initialization:
+self.data_handler = DataHandler(
+    self.api_wrapper,
+    self.event_queue,
+    symbols
+)
 from trading_bot.strategy.main_strategy import MainStrategy
 from trading_bot.risk.manager import RiskManager
 from trading_bot.position.manager import PositionManager
@@ -194,12 +201,21 @@ class TradingBotOrchestrator:
         self.threads.append(data_thread)
         logger.info("Data feed thread started")
     
+    # Add to process_events method:
     def process_events(self):
-        """Main event processing loop"""
+        """Main event processing loop with session management"""
         last_heartbeat = datetime.now()
         
         while self.running:
             try:
+                current_time = datetime.now().time()
+                
+                # Check for 3 PM closure
+                if current_time >= time(15, 0, 0) and current_time <= time(15, 5, 0):
+                    self._close_all_positions_at_3pm()
+                    logger.info("3 PM session closure completed")
+                    break
+                
                 events_processed = 0
                 
                 # Process market events
@@ -258,6 +274,26 @@ class TradingBotOrchestrator:
             except Exception as e:
                 logger.error(f"Error in main event loop: {e}")
                 time.sleep(1)
+    
+    def _close_all_positions_at_3pm(self):
+        """Force close all positions at 3 PM"""
+        try:
+            for pos_id, position in self.position_manager.open_positions.items():
+                # Create market order to close position
+                close_order = OrderEvent(
+                    symbol=position['symbol'],
+                    timestamp=datetime.now(),
+                    order_type='MARKET',
+                    side='SELL' if position['side'] == 'BUY' else 'BUY',
+                    quantity=position['quantity'],
+                    info={'reason': '3PM_CLOSURE', 'position_id': pos_id}
+                )
+                self.order_queue.put(close_order)
+                
+            logger.info(f"Initiated closure of {len(self.position_manager.open_positions)} positions at 3 PM")
+            
+        except Exception as e:
+            logger.error(f"Error closing positions at 3 PM: {e}")
     
     def emergency_shutdown(self):
         """Emergency shutdown procedure"""

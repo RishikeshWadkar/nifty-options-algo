@@ -1,79 +1,79 @@
-from typing import Optional
+from typing import Optional, Dict
 from trading_bot.event import MarketEvent, SignalEvent
 from trading_bot.strategy.zone_calculator import ZoneCalculator
 from loguru import logger
 from datetime import datetime, time
 
 class MainStrategy:
-    """
-    Core strategy class that consumes MarketEvents, utilizes the zone_calculator,
-    and produces SignalEvents based on the defined rules (e.g., Nifty Small SL Algo).
-
-    Args:
-        event_queue (EventQueue): Queue for incoming MarketEvents.
-        signal_queue (EventQueue): Queue for outgoing SignalEvents.
-        buffer (float): Buffer to add/subtract from entry zones.
-    """
-    def __init__(self, event_queue, signal_queue, buffer: float = 0.0) -> None:
-        """
-        Initialize the MainStrategy.
-
-        Args:
-            event_queue: Queue for incoming MarketEvents.
-            signal_queue: Queue for outgoing SignalEvents.
-            buffer (float): Buffer to add/subtract from entry zones.
-        """
+    """Nifty Small SL Algo - Zone-based options trading strategy"""
+    
+    def __init__(self, event_queue, signal_queue, zone_offset: float = 2.5):
         self.event_queue = event_queue
         self.signal_queue = signal_queue
-        self.zone_calculator = ZoneCalculator(buffer=buffer)
-        self.first_15min_events: list[MarketEvent] = []
-        self.zones: Optional[dict] = None
-        self.in_position: bool = False
-        self.entry_time: time = time(9, 16)
-        self.zone_calculated: bool = False
-
+        self.zone_calculator = ZoneCalculator(zone_offset)
+        self.zones: Optional[Dict] = None
+        self.current_position_type: Optional[str] = None  # 'CE', 'PE', or None
+        self.pending_order_id: Optional[str] = None
+        self.gates_status = {'ce_gate': True, 'pe_gate': True}  # Both gates open initially
+        
     def process_event(self, event: MarketEvent) -> None:
-        """
-        Process a MarketEvent, update zone calculation, and generate SignalEvents as needed.
-
-        Args:
-            event (MarketEvent): The incoming market event.
-        """
+        """Process market events for zone-based trading"""
         try:
-            event_time: time = event.timestamp.time() if hasattr(event.timestamp, 'time') else datetime.strptime(str(event.timestamp), '%Y-%m-%d %H:%M:%S').time()
-            if not self.zone_calculated:
-                if event_time <= self.entry_time:
-                    self.first_15min_events.append(event)
-                    logger.info(f"[MainStrategy] Collecting event for zone: {event}")
-                else:
-                    self.zones = self.zone_calculator.calculate_zones(self.first_15min_events)
-                    self.zone_calculated = True
-                    logger.info(f"[MainStrategy] Zones calculated: {self.zones}")
-            else:
-                if not self.in_position:
-                    # Entry logic
-                    if event.price >= self.zones['long_entry']:
-                        signal = SignalEvent(
-                            symbol=event.symbol,
-                            timestamp=event.timestamp,
-                            signal_type='LONG',
-                            strength=1.0,
-                            info={'entry_price': event.price}
-                        )
-                        self.signal_queue.put(signal)
-                        self.in_position = True
-                        logger.info(f"[MainStrategy] LONG entry signal generated: {signal}")
-                    elif event.price <= self.zones['short_entry']:
-                        signal = SignalEvent(
-                            symbol=event.symbol,
-                            timestamp=event.timestamp,
-                            signal_type='SHORT',
-                            strength=1.0,
-                            info={'entry_price': event.price}
-                        )
-                        self.signal_queue.put(signal)
-                        self.in_position = True
-                        logger.info(f"[MainStrategy] SHORT entry signal generated: {signal}")
-                # Add exit/SL/TSL logic as needed
-        except Exception as exc:
-            logger.error(f"[MainStrategy] Error processing event: {exc}")
+            current_time = event.timestamp.time()
+            
+            # Calculate zones at 9:16 AM
+            if self.zone_calculator.should_calculate_zones(current_time):
+                self.zones = self.zone_calculator.calculate_zones_at_916(event.price)
+                return
+            
+            # Skip if zones not calculated yet
+            if not self.zones:
+                return
+            
+            # Check for zone crossings
+            self._check_zone_crossings(event)
+            
+        except Exception as e:
+            logger.error(f"Error processing event in strategy: {e}")
+    
+    def _check_zone_crossings(self, event: MarketEvent):
+        """Check for zone crossings and generate signals"""
+        current_price = event.price
+        
+        # Upper zone crossing (CE entry)
+        if (current_price >= self.zones['upper_zone'] and 
+            self.gates_status['ce_gate']):
+            
+            self._generate_signal(event, 'CE', 'UPPER_ZONE_CROSS')
+            self.gates_status['pe_gate'] = False  # Close PE gate
+            
+        # Lower zone crossing (PE entry)
+        elif (current_price <= self.zones['lower_zone'] and 
+              self.gates_status['pe_gate']):
+            
+            self._generate_signal(event, 'PE', 'LOWER_ZONE_CROSS')
+            self.gates_status['ce_gate'] = False  # Close CE gate
+            
+        # Middle zone touch (reopen gates)
+        elif (abs(current_price - self.zones['middle_zone']) <= 0.5):
+            self.gates_status = {'ce_gate': True, 'pe_gate': True}
+            logger.info("Middle zone touched - Both gates reopened")
+    
+    def _generate_signal(self, event: MarketEvent, option_type: str, reason: str):
+        """Generate trading signal with cancel-and-replace logic"""
+        signal = SignalEvent(
+            symbol=event.symbol,
+            timestamp=event.timestamp,
+            signal_type=option_type,  # 'CE' or 'PE'
+            strength=1.0,
+            info={
+                'reason': reason,
+                'index_price': event.price,
+                'zones': self.zones,
+                'cancel_pending': self.pending_order_id is not None,
+                'pending_order_id': self.pending_order_id
+            }
+        )
+        
+        self.signal_queue.put(signal)
+        logger.info(f"Generated {option_type} signal: {reason} at price {event.price}")
