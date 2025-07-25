@@ -1,6 +1,6 @@
 import yaml
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from loguru import logger
 
 class ConfigManager:
