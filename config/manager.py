@@ -2,6 +2,8 @@ import yaml
 import os
 from typing import Dict, Any, List
 from loguru import logger
+from dotenv import load_dotenv
+
 
 class ConfigManager:
     """
@@ -10,6 +12,9 @@ class ConfigManager:
     """
     
     def __init__(self, config_path: str = 'config/config.yaml'):
+        # Load environment variables from .env file
+        load_dotenv()
+        
         self.config_path = config_path
         self.config = self.load_config()
         self.validate_config()
